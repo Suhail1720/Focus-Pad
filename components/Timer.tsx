@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlayIcon, PauseIcon, ResetIcon } from './icons.tsx';
 
-const Timer: React.FC = () => {
+interface TimerProps {
+  onStart: (currentSeconds: number) => void;
+  onEnd: (currentSeconds: number) => void;
+}
+
+const Timer: React.FC<TimerProps> = ({ onStart, onEnd }) => {
   const [initialSeconds, setInitialSeconds] = useState<number>(300);
   const [seconds, setSeconds] = useState<number>(300);
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -14,26 +19,27 @@ const Timer: React.FC = () => {
 
   const handleTimeChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string, max: number) => {
     const numValue = parseInt(value, 10);
-    if (value === '' || (numValue >= 0 && numValue <= max)) {
-      setter(value.padStart(2, '0').slice(-2));
+    if (value === '' || (!isNaN(numValue) && numValue >= 0 && numValue <= max)) {
+       setter(value);
     }
   };
+  
+  const handleTimeBlur = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+      setter(value.padStart(2, '0').slice(-2));
+  }
 
-  const setTimer = useCallback(() => {
+  useEffect(() => {
     const h = parseInt(inputHours, 10) || 0;
     const m = parseInt(inputMinutes, 10) || 0;
     const s = parseInt(inputSeconds, 10) || 0;
     const totalSeconds = h * 3600 + m * 60 + s;
     setInitialSeconds(totalSeconds);
     setSeconds(totalSeconds);
+    if(isRunning) {
+        onEnd(seconds); // End previous session if time is changed while running
+    }
     setIsRunning(false);
   }, [inputHours, inputMinutes, inputSeconds]);
-
-  useEffect(() => {
-    if(!isRunning) {
-        setTimer();
-    }
-  }, [inputHours, inputMinutes, inputSeconds, isRunning, setTimer]);
 
   useEffect(() => {
     if (isRunning && seconds > 0) {
@@ -41,6 +47,7 @@ const Timer: React.FC = () => {
         setSeconds(prev => prev - 1);
       }, 1000);
     } else if (seconds === 0 && isRunning) {
+      onEnd(0);
       setIsRunning(false);
       alert("Time's up!");
     }
@@ -50,15 +57,23 @@ const Timer: React.FC = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, seconds]);
+  }, [isRunning, seconds, onEnd]);
 
   const handleStartPause = () => {
-    if (initialSeconds > 0) {
+    if (initialSeconds > 0 || seconds > 0) {
+      if (!isRunning) {
+        onStart(seconds);
+      } else {
+        onEnd(seconds);
+      }
       setIsRunning(!isRunning);
     }
   };
 
   const handleReset = () => {
+    if (isRunning) {
+      onEnd(seconds);
+    }
     setIsRunning(false);
     setSeconds(initialSeconds);
   };
@@ -86,6 +101,7 @@ const Timer: React.FC = () => {
             type="text" 
             value={inputHours} 
             onChange={(e) => handleTimeChange(setInputHours, e.target.value, 99)}
+            onBlur={(e) => handleTimeBlur(setInputHours, e.target.value)}
             className="w-12 text-center bg-slate-900/70 border border-slate-700 rounded-md p-1 text-base focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-50"
             disabled={isRunning}
             maxLength={2}
@@ -95,6 +111,7 @@ const Timer: React.FC = () => {
             type="text" 
             value={inputMinutes}
             onChange={(e) => handleTimeChange(setInputMinutes, e.target.value, 59)}
+            onBlur={(e) => handleTimeBlur(setInputMinutes, e.target.value)}
             className="w-12 text-center bg-slate-900/70 border border-slate-700 rounded-md p-1 text-base focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-50"
             disabled={isRunning}
             maxLength={2}
@@ -104,6 +121,7 @@ const Timer: React.FC = () => {
             type="text" 
             value={inputSeconds}
             onChange={(e) => handleTimeChange(setInputSeconds, e.target.value, 59)}
+            onBlur={(e) => handleTimeBlur(setInputSeconds, e.target.value)}
             className="w-12 text-center bg-slate-900/70 border border-slate-700 rounded-md p-1 text-base focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-50"
             disabled={isRunning}
             maxLength={2}
@@ -115,7 +133,7 @@ const Timer: React.FC = () => {
       <div className="flex justify-center items-center gap-2 mt-auto">
         <button
           onClick={handleStartPause}
-          disabled={initialSeconds === 0 && !isRunning}
+          disabled={initialSeconds === 0 && seconds === 0}
           className="w-20 h-9 flex items-center justify-center gap-1 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-400"
         >
           {isRunning ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}

@@ -1,16 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-const Notepad: React.FC = () => {
-  const [note, setNote] = useState<string>('');
+interface NotepadProps {
+  note: string;
+  setNote: (note: string) => void;
+}
 
-  // Load the saved note from localStorage when the component mounts
-  useEffect(() => {
-    const savedNote = localStorage.getItem('savedNote');
-    if (savedNote) {
-      setNote(savedNote);
-    }
-  }, []);
-
+const Notepad: React.FC<NotepadProps> = ({ note, setNote }) => {
   const handleSave = () => {
     localStorage.setItem('savedNote', note);
     alert('Note saved successfully!');
