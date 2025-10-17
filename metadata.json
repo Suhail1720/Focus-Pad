@@ -1,0 +1,5 @@
+{
+  "name": "Notepad Timer",
+  "description": "A simple notepad application with a built-in settable timer to help you focus on your tasks. Write down your thoughts and set a timer to stay productive.",
+  "requestFramePermissions": []
+}
