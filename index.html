@@ -10,25 +10,16 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <!-- Babel to transpile JSX in the browser -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/"
-  }
-}
-</script>
 </head>
 
-<body class="bg-gray-900 text-white p-6">
+<body class="bg-gray-900 text-white">
   <div id="root"></div>
 
   <!-- All application code is now in this single script block -->
   <script type="text/babel" data-presets="react,typescript">
     const { useState, useEffect, useRef, useCallback } = React;
 
-    // --- from components/icons.tsx ---
+    // --- SVG Icons ---
     const PlayIcon = ({ className }) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.648c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
@@ -46,9 +37,45 @@
         <path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-4.518a.75.75 0 00-.75.75v4.518l1.903-1.903a.75.75 0 00-1.06-1.06l-1.903 1.903a5.997 5.997 0 00-9.07 7.01l-1.903 1.903a.75.75 0 00-1.06-1.06l1.903-1.903A7.475 7.475 0 014.755 10.059z" clipRule="evenodd" />
       </svg>
     );
+    
+    // --- History Component ---
+    const History = ({ sessions }) => {
+      const formatDuration = (totalSeconds) => {
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}m ${seconds}s`;
+      };
 
-    // --- from components/Timer.tsx ---
-    const Timer = () => {
+      return (
+        <div className="bg-slate-800/50 rounded-xl shadow-lg ring-1 ring-white/10 p-4 lg:w-56 lg:flex-shrink-0">
+          <h2 className="text-xl font-bold text-cyan-300 mb-3">Session History</h2>
+          {sessions.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-4">
+              Complete a timer session to see your stats here.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {sessions.map((session) => (
+                <li key={session.id} className="text-sm bg-slate-900/50 p-2 rounded-md border border-slate-700">
+                  <div className="flex justify-between items-center font-semibold">
+                    <span>{formatDuration(session.duration)}</span>
+                    <span className="text-cyan-400">{session.wpm} WPM</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-400 mt-1">
+                    <span>{session.wordsTyped} words typed</span>
+                    <span>Accuracy: {session.accuracy}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    };
+
+
+    // --- Timer Component ---
+    const Timer = ({ onStart, onEnd }) => {
       const [initialSeconds, setInitialSeconds] = useState(300);
       const [seconds, setSeconds] = useState(300);
       const [isRunning, setIsRunning] = useState(false);
@@ -70,21 +97,18 @@
           setter(value.padStart(2, '0').slice(-2));
       }
 
-      const setTimer = useCallback(() => {
+      useEffect(() => {
         const h = parseInt(inputHours, 10) || 0;
         const m = parseInt(inputMinutes, 10) || 0;
         const s = parseInt(inputSeconds, 10) || 0;
         const totalSeconds = h * 3600 + m * 60 + s;
         setInitialSeconds(totalSeconds);
         setSeconds(totalSeconds);
+        if(isRunning) {
+            onEnd(seconds); // End previous session if time is changed
+        }
         setIsRunning(false);
       }, [inputHours, inputMinutes, inputSeconds]);
-
-      useEffect(() => {
-        if(!isRunning) {
-            setTimer();
-        }
-      }, [inputHours, inputMinutes, inputSeconds, isRunning, setTimer]);
 
       useEffect(() => {
         if (isRunning && seconds > 0) {
@@ -92,6 +116,7 @@
             setSeconds(prev => prev - 1);
           }, 1000);
         } else if (seconds === 0 && isRunning) {
+          onEnd(0);
           setIsRunning(false);
           alert("Time's up!");
         }
@@ -101,15 +126,23 @@
             clearInterval(intervalRef.current);
           }
         };
-      }, [isRunning, seconds]);
+      }, [isRunning, seconds, onEnd]);
 
       const handleStartPause = () => {
-        if (initialSeconds > 0) {
+        if (initialSeconds > 0 || seconds > 0) {
+          if (!isRunning) {
+            onStart(seconds);
+          } else {
+            onEnd(seconds);
+          }
           setIsRunning(!isRunning);
         }
       };
 
       const handleReset = () => {
+        if (isRunning) {
+          onEnd(seconds);
+        }
         setIsRunning(false);
         setSeconds(initialSeconds);
       };
@@ -169,7 +202,7 @@
           <div className="flex justify-center items-center gap-2 mt-auto">
             <button
               onClick={handleStartPause}
-              disabled={initialSeconds === 0 && !isRunning}
+              disabled={initialSeconds === 0 && seconds === 0}
               className="w-20 h-9 flex items-center justify-center gap-1 bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-slate-900 font-bold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-400"
             >
               {isRunning ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
@@ -187,17 +220,8 @@
       );
     };
 
-    // --- from components/Notepad.tsx ---
-    const Notepad = () => {
-      const [note, setNote] = useState('');
-
-      useEffect(() => {
-        const savedNote = localStorage.getItem('savedNote');
-        if (savedNote) {
-          setNote(savedNote);
-        }
-      }, []);
-
+    // --- Notepad Component ---
+    const Notepad = ({ note, setNote }) => {
       const handleSave = () => {
         localStorage.setItem('savedNote', note);
         alert('Note saved successfully!');
@@ -218,7 +242,7 @@
             onChange={(e) => setNote(e.target.value)}
             spellCheck="false"
             className="flex-grow w-full bg-slate-900/70 border border-slate-700 rounded-lg p-4 text-slate-300 placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-shadow resize-none"
-            style={{ minHeight: '300px' }}
+            style={{ minHeight: '400px' }}
           />
           <div className="flex justify-end gap-2 mt-4">
             <button
@@ -238,17 +262,81 @@
       );
     };
 
-    // --- from App.tsx ---
+    // --- Main App Component ---
     const App = () => {
+      const [note, setNote] = useState('');
+      const [history, setHistory] = useState([]);
+      const [activeSession, setActiveSession] = useState({
+        noteAtStart: '',
+        secondsAtStart: 0,
+        isActive: false,
+      });
+
+      useEffect(() => {
+        const savedNote = localStorage.getItem('savedNote');
+        if (savedNote) {
+          setNote(savedNote);
+        }
+        const savedHistory = localStorage.getItem('sessionHistory');
+        if (savedHistory) {
+          setHistory(JSON.parse(savedHistory));
+        }
+      }, []);
+
+      const handleTimerStart = (currentSeconds) => {
+        setActiveSession({
+          noteAtStart: note,
+          secondsAtStart: currentSeconds,
+          isActive: true,
+        });
+      };
+
+      const handleTimerEnd = (currentSeconds) => {
+        if (!activeSession.isActive) return;
+
+        const wordsAtStart = activeSession.noteAtStart.split(/\s+/).filter(Boolean).length;
+        const wordsAtEnd = note.split(/\s+/).filter(Boolean).length;
+        const wordsTyped = Math.max(0, wordsAtEnd - wordsAtStart);
+
+        const durationInSeconds = activeSession.secondsAtStart - currentSeconds;
+
+        if (durationInSeconds <= 0) {
+          setActiveSession({ noteAtStart: '', secondsAtStart: 0, isActive: false });
+          return;
+        }
+
+        const durationInMinutes = durationInSeconds / 60;
+        const wpm = Math.round(wordsTyped / durationInMinutes);
+
+        const newEntry = {
+          id: Date.now(),
+          duration: durationInSeconds,
+          wordsTyped,
+          wpm,
+          accuracy: 'N/A', // Placeholder for spelling accuracy
+        };
+
+        setHistory(prev => {
+          const updatedHistory = [newEntry, ...prev].slice(0, 5);
+          localStorage.setItem('sessionHistory', JSON.stringify(updatedHistory));
+          return updatedHistory;
+        });
+        
+        setActiveSession({ noteAtStart: '', secondsAtStart: 0, isActive: false });
+      };
+
       return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-slate-800 text-white flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 font-sans">
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-slate-800 text-white flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
           <header className="mb-8 text-center">
             <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400 tracking-tight">Focus Pad</h1>
             <p className="text-slate-400 mt-2 text-lg">Your personal notepad with a focus timer.</p>
           </header>
-          <main className="w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-stretch gap-8">
-            <Timer />
-            <Notepad />
+          <main className="w-full flex-grow flex flex-col lg:flex-row items-stretch gap-8">
+            <div className="flex flex-col gap-8">
+                <Timer onStart={handleTimerStart} onEnd={handleTimerEnd} />
+                <History sessions={history} />
+            </div>
+            <Notepad note={note} setNote={setNote} />
           </main>
           <footer className="mt-8 text-center text-slate-500 text-sm">
             <p>Built with React & Tailwind CSS.</p>
@@ -257,7 +345,7 @@
       );
     };
 
-    // --- from index.tsx ---
+    // --- Mount the application ---
     const rootElement = document.getElementById('root');
     const root = ReactDOM.createRoot(rootElement);
     root.render(
